@@ -113,26 +113,19 @@ vi.mock("~/services/apiAdapters/registry", () => ({
               userGroups: { fetch: async () => ({}) },
             },
             tokenProvisioning:
-              siteType === SITE_TYPES.SUB2API
+              siteType === SITE_TYPES.AIHUBMIX
                 ? {
                     getRepairPolicy: () => ({
                       kind: TOKEN_PROVISIONING_REPAIR_POLICY_KINDS.Skipped,
-                      skipReason: ACCOUNT_KEY_REPAIR_SKIP_REASONS.Sub2Api,
+                      skipReason:
+                        ACCOUNT_KEY_REPAIR_SKIP_REASONS.AihubmixOneTimeKey,
                     }),
                   }
-                : siteType === SITE_TYPES.AIHUBMIX
-                  ? {
-                      getRepairPolicy: () => ({
-                        kind: TOKEN_PROVISIONING_REPAIR_POLICY_KINDS.Skipped,
-                        skipReason:
-                          ACCOUNT_KEY_REPAIR_SKIP_REASONS.AihubmixOneTimeKey,
-                      }),
-                    }
-                  : {
-                      getRepairPolicy: () => ({
-                        kind: TOKEN_PROVISIONING_REPAIR_POLICY_KINDS.Eligible,
-                      }),
-                    },
+                : {
+                    getRepairPolicy: () => ({
+                      kind: TOKEN_PROVISIONING_REPAIR_POLICY_KINDS.Eligible,
+                    }),
+                  },
           }),
     },
   })),
@@ -233,13 +226,6 @@ describe("accountKeyRepair", () => {
   })
 
   it("records skipped, created, and failed outcomes during a repair run", async () => {
-    const sub2apiAccount = buildSiteAccount({
-      id: "sub2api-1",
-      site_type: SITE_TYPES.SUB2API,
-      site_url: "https://sub2api.example.com",
-      authType: AuthTypeEnum.AccessToken,
-      disabled: false,
-    })
     const aihubmixAccount = buildSiteAccount({
       id: "aihubmix-1",
       site_type: SITE_TYPES.AIHUBMIX,
@@ -305,22 +291,12 @@ describe("accountKeyRepair", () => {
     })
 
     mocks.getAllAccounts.mockResolvedValue([
-      sub2apiAccount,
       aihubmixAccount,
       validAccount,
       invalidDisplayAccount,
       sharedChatAccount,
     ])
     mocks.convertToDisplayData.mockReturnValue([
-      buildDisplaySiteData({
-        id: sub2apiAccount.id,
-        name: "Sub2API",
-        baseUrl: sub2apiAccount.site_url,
-        siteType: sub2apiAccount.site_type,
-        authType: AuthTypeEnum.AccessToken,
-        userId: "1",
-        token: "sub2api-token",
-      }),
       buildDisplaySiteData({
         id: aihubmixAccount.id,
         name: "AIHubMix",
@@ -396,7 +372,7 @@ describe("accountKeyRepair", () => {
 
     const progress = await accountKeyRepairRunner.getProgress()
     expect(progress.totals).toMatchObject({
-      enabledAccounts: 5,
+      enabledAccounts: 4,
       eligibleAccounts: 2,
       processedAccounts: 2,
       processedEligibleAccounts: 2,
@@ -404,7 +380,7 @@ describe("accountKeyRepair", () => {
     expect(progress.summary).toEqual({
       created: 2,
       alreadyHad: 0,
-      skipped: 3,
+      skipped: 2,
       failed: 0,
       availableGroups: 0,
       coveredGroups: 0,
@@ -417,12 +393,6 @@ describe("accountKeyRepair", () => {
     })
     expect(progress.results).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          accountId: "sub2api-1",
-          outcome: ACCOUNT_KEY_REPAIR_OUTCOMES.Skipped,
-          skipReason: ACCOUNT_KEY_REPAIR_SKIP_REASONS.Sub2Api,
-          siteUrlOrigin: "https://sub2api.example.com",
-        }),
         expect.objectContaining({
           accountId: "aihubmix-1",
           outcome: ACCOUNT_KEY_REPAIR_OUTCOMES.Skipped,

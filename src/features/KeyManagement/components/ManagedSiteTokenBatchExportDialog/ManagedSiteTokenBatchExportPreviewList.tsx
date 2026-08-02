@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next"
 import { RefreshCcw } from "lucide-react"
-import { useId } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 
 import {
   Button,
@@ -8,6 +8,7 @@ import {
   type CompactMultiSelectOption,
 } from "~/components/ui"
 import type {
+  ManagedSiteTokenBatchExportExecutionItem,
   ManagedSiteTokenBatchExportExecutionResult,
   ManagedSiteTokenBatchExportMatchedChannel,
   ManagedSiteTokenBatchExportPreview,
@@ -45,6 +46,14 @@ interface ManagedSiteTokenBatchExportPreviewListProps {
   ) => void
 }
 
+type ExecutionStatusFilter = "all" | "success" | "failed" | "skipped"
+type ExecutionStatus = Exclude<ExecutionStatusFilter, "all">
+
+const getExecutionStatus = (
+  result: ManagedSiteTokenBatchExportExecutionItem,
+): ExecutionStatus =>
+  result.success ? "success" : result.skipped ? "skipped" : "failed"
+
 /**
  * Renders preview selection controls and the list of batch export rows.
  */
@@ -70,6 +79,72 @@ export function ManagedSiteTokenBatchExportPreviewList({
   const isVerificationPending =
     isVerificationDialogOpen || Boolean(verifyingItemId)
   const selectAllId = useId()
+  const [executionStatusFilter, setExecutionStatusFilter] =
+    useState<ExecutionStatusFilter>("all")
+
+  useEffect(() => {
+    setExecutionStatusFilter("all")
+  }, [executionResult])
+
+  const resultById = useMemo(
+    () =>
+      new Map(
+        executionResult?.items.map((item) => [item.id, item] as const) ?? [],
+      ),
+    [executionResult],
+  )
+
+  const resultCounts = useMemo(() => {
+    const counts: Record<ExecutionStatus, number> = {
+      success: 0,
+      failed: 0,
+      skipped: 0,
+    }
+
+    for (const item of executionResult?.items ?? []) {
+      counts[getExecutionStatus(item)] += 1
+    }
+
+    return counts
+  }, [executionResult])
+
+  const visibleItems = useMemo(
+    () =>
+      executionStatusFilter === "all"
+        ? preview.items
+        : preview.items.filter((item) => {
+            const result = resultById.get(item.id)
+            return result
+              ? getExecutionStatus(result) === executionStatusFilter
+              : false
+          }),
+    [executionStatusFilter, preview.items, resultById],
+  )
+
+  const resultFilters = executionResult
+    ? [
+        {
+          value: "all" as const,
+          label: t("account:filter.tagsAllLabel"),
+          count: executionResult.items.length,
+        },
+        {
+          value: "success" as const,
+          label: t("common:status.success"),
+          count: resultCounts.success,
+        },
+        {
+          value: "failed" as const,
+          label: t("common:status.failed"),
+          count: resultCounts.failed,
+        },
+        {
+          value: "skipped" as const,
+          label: t("modelList:batchVerify.status.skipped"),
+          count: resultCounts.skipped,
+        },
+      ]
+    : []
 
   return (
     <>
@@ -114,16 +189,33 @@ export function ManagedSiteTokenBatchExportPreviewList({
         </div>
       ) : null}
 
+      {executionResult ? (
+        <div className="flex flex-wrap gap-2">
+          {resultFilters.map((filter) => (
+            <Button
+              key={filter.value}
+              type="button"
+              size="sm"
+              variant={
+                executionStatusFilter === filter.value ? "secondary" : "outline"
+              }
+              aria-pressed={executionStatusFilter === filter.value}
+              onClick={() => setExecutionStatusFilter(filter.value)}
+            >
+              {filter.label} ({filter.count})
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="max-h-[60vh] space-y-3 overflow-y-auto rounded-md border p-3 md:max-h-[min(70vh,48rem)]">
-        {preview.items.map((item) => (
+        {visibleItems.map((item) => (
           <ManagedSiteTokenBatchExportPreviewRow
             key={item.id}
             t={t}
             item={item}
             siteType={preview.siteType}
-            result={executionResult?.items.find(
-              (resultItem) => resultItem.id === item.id,
-            )}
+            result={resultById.get(item.id)}
             modelOptions={modelOptions}
             isSelected={selectedIds.has(item.id)}
             hasExecutionResult={hasExecutionResult}

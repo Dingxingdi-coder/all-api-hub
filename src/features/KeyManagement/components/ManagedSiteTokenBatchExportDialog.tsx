@@ -27,6 +27,8 @@ export function ManagedSiteTokenBatchExportDialog({
     "keyManagement",
     "settings",
     "common",
+    "account",
+    "modelList",
     "channelDialog",
   ])
   const dialog = useManagedSiteTokenBatchExportDialog({
